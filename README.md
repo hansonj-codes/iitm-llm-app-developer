@@ -7,6 +7,7 @@ sdk: docker
 pinned: false
 license: mit
 short_description: Develops Github Page Apps via LLM and publishes the same
+app_port: 7777
 ---
 
 # IITM LLM App Developer
