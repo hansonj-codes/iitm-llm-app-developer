@@ -34,6 +34,11 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+@app.get("/", status_code=status.HTTP_200_OK)
+async def root() -> dict:
+    """Health check endpoint."""
+    return {"status": "ok", "message": "LLM App Developer is running."}
+
 
 @app.post(
     "/submit-task",
