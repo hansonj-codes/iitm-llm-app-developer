@@ -11,7 +11,7 @@ RUN chown -R user:user /app
 USER user
 ENV PATH="/app/.venv/bin:/home/user/.local/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
-
+ENV APP_PORT=7777
 
 COPY --chown=user ./app /app/app
 COPY --chown=user .python-version /app/.python-version
