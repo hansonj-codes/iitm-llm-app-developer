@@ -2,6 +2,7 @@ import sqlite3
 import os
 from typing import Dict, Any, Optional
 from contextlib import contextmanager
+from datetime import datetime
 
 # Database configuration from environment variables
 DB_PATH = os.getenv("DB_PATH", "tasks.db")
@@ -47,19 +48,33 @@ def initialize_db():
                 commit_message TEXT,
                 ----------------------------- Mutable fields for repository details
                 commit_hash TEXT,
+                ----------------------------- Time fields
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                -------------------------------------------------------------------------------------
+                ----------------------------- Round 1 archive fields
+                round1_email TEXT,
+                round1_nonce TEXT,
+                round1_brief TEXT,
+                round1_evaluation_url TEXT,
+                round1_checks TEXT,
+                round1_attachments TEXT,
+                round1_llm_output_path TEXT,
+                round1_created_files TEXT,
+                round1_commit_message TEXT,
+                round1_commit_hash TEXT,
+                round1_created_at TIMESTAMP,
+                round1_updated_at TIMESTAMP,
+                -------------------------------------------------------------------------------------
+                -------------------------------------------------------------------------------------
                 ----------------------------- Immutable fields for repository details
                 repo_name TEXT,
                 repo_clone_url TEXT,
                 base_path TEXT, -- Base folder where repos are stored
                 owner TEXT,
                 repo_local_path TEXT,
-                pages_url TEXT,
-                ----------------------------- System fields
-                status TEXT,
-                result TEXT,
-                error_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                pages_url TEXT
+                -------------------------------------------------------------------------------------
             )
         """)
         
@@ -145,6 +160,61 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
             return dict(row)
         return None
 
+def archive_task_round_1(task_id: str) -> bool:
+    """
+    Archive the current round of a task by copying current fields to round1_ fields.
+    
+    Args:
+        task_id: Unique identifier for the task
+    
+    Returns:
+        bool: True if operation was successful, False if task does not exist
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Check if task exists
+        cursor.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        
+        # Prepare the UPDATE statement to copy current fields to round1_ fields
+        update_query = """
+            UPDATE tasks
+            SET 
+                round1_email = email,
+                round1_nonce = nonce,
+                round1_brief = brief,
+                round1_evaluation_url = evaluation_url,
+                round1_checks = checks,
+                round1_attachments = attachments,
+                round1_llm_output_path = llm_output_path,
+                round1_created_files = created_files,
+                round1_commit_message = commit_message,
+                round1_commit_hash = commit_hash,
+                round1_created_at = created_at,
+                round1_updated_at = updated_at
+            WHERE task_id = ?
+        """
+        
+        cursor.execute(update_query, (task_id,))
+        
+    return True
+
+def parse_db_timestamp(timestamp_str: str) -> Optional[Any]:
+    """
+    Parse a timestamp string from the database into a Python datetime object.
+    
+    Args:
+        timestamp_str: Timestamp string in 'YYYY-MM-DD HH:MM:SS' format
+    """
+    if not timestamp_str:
+        return None
+    try:
+        return datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
 
 # Example usage in FastAPI
 if __name__ == "__main__":

@@ -10,15 +10,18 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 
+from app.common_utils import get_current_utc_time
+from app.external_api import send_round_completion_notification
 from app.openai_llm_utils import construct_user_prompt, default_system_prompt, request_llm_and_get_output
 from app.xml_utils import create_files_from_response
 
 from .github_utils import GitHubError, create_remote_repository, git_commit_and_push, setup_local_repo, enable_github_pages
 from .models import SubmitTaskRequest
-from .database_utils import upsert_task, get_task
+from .database_utils import archive_task_round_1, parse_db_timestamp, upsert_task, get_task
 
 MAX_REPO_CREATION_ATTEMPTS = 5
-
+ROUND_1_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
+ROUND_1_OTHER_TASKS_TIME_REQUIRED = 30
 
 def handle_llm_task(task: str) -> dict:
     """Delegate a task based on its round identifier."""
@@ -37,6 +40,7 @@ def handle_llm_task(task: str) -> dict:
 def handle_round_01(task: str) -> dict:
     """Create and initialise a repository for round 1 tasks."""
     base_path = Path(os.getenv("REPO_BASE_PATH", "./all_repositories")).resolve()
+    LLM_APPROX_TIME_REQUIRED = int(os.getenv("OPENAI_API_REQUEST_TIMEOUT"))  # seconds
 
     for attempt in range(MAX_REPO_CREATION_ATTEMPTS):
         repo_suffix = uuid4().hex[:8]
@@ -91,47 +95,69 @@ def handle_round_01(task: str) -> dict:
         print(f"Successfully created and initialized bare repository: {repo_name}")
         print(f"Details: {get_task(task)}")
 
-        try:
-            user_prompt = construct_user_prompt(
-                task=task
-            )
-            llm_output = request_llm_and_get_output(
-                system_prompt=default_system_prompt(),
-                user_prompt=user_prompt,
-            )
-            llm_output_save_path = Path(complete_repo_path) / '.llm_output_round_1.txt'
-            with open(llm_output_save_path, 'w', encoding='utf-8') as f:
-                f.write(llm_output)
-            print(f"Saved LLM output to {llm_output_save_path}")
-            upsert_task(task, {
-                "llm_output_path": str(llm_output_save_path),
-            })
-            created_files = create_files_from_response(
-                task=task,
-                xml_file_path=llm_output_save_path,
-                repo_path=complete_repo_path,
-                additional_exclude_files=[],
-            )
-            upsert_task(task, {
-                "created_files": json.dumps(created_files),
-            })
+        # Interact with LLM to generate task solution files and commit
+        # Since LLM calls can be flaky, we wrap this in a try-except to handle failures gracefully
+        # This block is retried until time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_1_OTHER_TASKS_TIME_REQUIRED < ROUND_1_TIMEOUT_SECONDS
+        while True:
             payload = get_task(task)
-            round1_commit_sha = git_commit_and_push(
-                repo_path=complete_repo_path,
-                owner=payload["owner"],
-                message=payload.get("commit_message", "Initial commit from LLM")
-            )
-            upsert_task(task, {
-                "commit_hash": round1_commit_sha,
-            })
+            task_created_at = parse_db_timestamp(payload.get("created_at"))
+            time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
+            if time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_1_OTHER_TASKS_TIME_REQUIRED > ROUND_1_TIMEOUT_SECONDS:
+                print("Lack of time to safely complete LLM interaction, so skipping it and submitting bare repo.")
+                break
+            print(f"Starting LLM interaction for task {task} as time elapsed {time_elapsed} is in safe range.")
+            try:
+                user_prompt = construct_user_prompt(
+                    task=task
+                )
+                llm_output = request_llm_and_get_output(
+                    system_prompt=default_system_prompt(),
+                    user_prompt=user_prompt,
+                )
+                llm_output_save_path = Path(complete_repo_path) / '.llm_output_round_1.txt'
+                with open(llm_output_save_path, 'w', encoding='utf-8') as f:
+                    f.write(llm_output)
+                print(f"Saved LLM output to {llm_output_save_path}")
+                upsert_task(task, {
+                    "llm_output_path": str(llm_output_save_path),
+                })
+                created_files = create_files_from_response(
+                    task=task,
+                    xml_file_path=llm_output_save_path,
+                    repo_path=complete_repo_path,
+                    additional_exclude_files=[],
+                )
+                upsert_task(task, {
+                    "created_files": json.dumps(created_files),
+                })
+                payload = get_task(task)
+                round1_commit_sha = git_commit_and_push(
+                    repo_path=complete_repo_path,
+                    owner=payload["owner"],
+                    message=payload.get("commit_message", "Initial commit from LLM")
+                )
+                upsert_task(task, {
+                    "commit_hash": round1_commit_sha,
+                })
+                print(f"Committed and pushed LLM-generated files to remote repository, commit {round1_commit_sha}")
+                break  # Exit the while loop on success
+            except Exception as exc:
+                print(f"LLM interaction failed for task {task}, retrying if time permits: {exc}")
+                continue  # Retry the LLM interaction if time permits
+        
+        try:
+            send_round_completion_notification(task)
         except Exception as exc:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to construct user prompt: {exc}",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to notify evaluation service: {exc}",
             ) from exc
         
-        
-        
+        try:
+            archive_task_round_1(task)
+        except Exception as exc:
+            print(f"Warning: Failed to archive round 1 task {task}: {exc}")
+                
         return {"backend_message": f"Repository {repo_name} created successfully."}
 
     raise HTTPException(

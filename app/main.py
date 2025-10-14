@@ -84,11 +84,8 @@ async def submit_task(payload: SubmitTaskRequest, background_tasks: BackgroundTa
             "nonce": payload.nonce,
             "brief": payload.brief,
             "evaluation_url": str(payload.evaluation_url),
-            "checks": json.dumps(payload.checks),
+            "checks": json.dumps([str(ck) for ck in payload.checks]),
             "attachments": json.dumps([{"name": att.name, "url": att.url} for att in payload.attachments]),
-            "status": "pending",
-            "result": None,
-            "error_message": None,
             "created_at": get_current_utc_time(),
             "updated_at": get_current_utc_time(),
         })

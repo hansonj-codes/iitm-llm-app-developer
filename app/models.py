@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -23,7 +23,7 @@ class SubmitTaskRequest(BaseModel):
     round: int = Field(..., ge=1, description="Round index for the task.")
     nonce: str = Field(..., description="Nonce that should be echoed back on evaluation.")
     brief: str = Field(..., description="Short description of the requested app.")
-    checks: List[str] = Field(
+    checks: List[Any] = Field(
         default_factory=list,
         description="Evaluation checklist items.",
     )

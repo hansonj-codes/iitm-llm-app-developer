@@ -192,8 +192,7 @@ def construct_user_prompt(task: str) -> str:
  - Do NOT return any text outside XML tags as the output will be parsed by a XML parser
 
 ## Repo Details
- - username: <<username>>
- - repo name: <<repo_name>>
+ - repo url is: <<repo_url>>
 """
     def make_list(items: List[str]) -> str:
         if not items:
@@ -206,13 +205,11 @@ def construct_user_prompt(task: str) -> str:
     attachments_lines = make_list(
         [f'name: {att.get("name", "unnamed")}, type: {att.get("url", "").split(";")[0]}' for att in loaded_attachments]
     )
-    owner = payload.get('owner', 'unknown')
-    repo_name = payload.get('repo_name', 'unknown')
+    repo_url = payload.get('repo_clone_url')
     user_prompt = user_prompt_template.replace("<<brief>>", brief_line)\
                                      .replace("<<checks>>", checks_lines)\
                                      .replace("<<attachments>>", attachments_lines)\
-                                     .replace("<<username>>", owner)\
-                                     .replace("<<repo_name>>", repo_name)
+                                     .replace("<<repo_url>>", repo_url)
     print(user_prompt)
     return user_prompt
 

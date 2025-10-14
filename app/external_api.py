@@ -8,7 +8,9 @@ def exponential_backoff_retry(func, max_retries=20, initial_delay=1, backoff_fac
     for attempt in range(max_retries):
         try:
             return func(*args, **kwargs)
-        except Exception:
+        except Exception as exc :
+            print(f"Attempt {attempt + 1} failed, retrying after delay...")
+            print(f"Error: {exc}")
             if attempt == max_retries - 1:
                 raise
             time.sleep(delay)
@@ -20,7 +22,9 @@ def exponential_backoff_jitter_retry(func, max_retries=17, initial_delay=1, back
     for attempt in range(max_retries):
         try:
             return func(*args, **kwargs)
-        except Exception:
+        except Exception as exc:
+            print(f"Attempt {attempt + 1} failed, retrying after delay...")
+            print(f"Error: {exc}")
             if attempt == max_retries - 1:
                 raise
             sleep_time = delay + random.uniform(-jitter, jitter)
@@ -43,6 +47,7 @@ def send_round_completion_notification(task: str) -> None:
         "Content-Type": "application/json",
     }
     def post_request():
+        print(f"Sending round completion notification to {evaluation_url} for task {task}")
         response = requests.post(evaluation_url, json=submit_payload, headers=headers, timeout=10)
         response.raise_for_status()
         return response
