@@ -148,7 +148,6 @@ When asked to generate project files:
 - Write complete, working code - never use placeholder comments like "// Add logic here"
 - Include concise, meaningful comments explaining complex logic
 - Use appropriate error handling and edge case management
-- Follow security best practices
 - Ensure all external dependencies are loaded from CDNs when specified
 - Make code readable and maintainable
 

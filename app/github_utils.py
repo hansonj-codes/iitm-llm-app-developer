@@ -152,7 +152,7 @@ def write_instructions(repo_path: Path, task: str, brief: str, checks: list[str]
         *(f"- {item}" for item in checks),
     ]
     content = "\n".join(instructions).strip() + "\n"
-    (repo_path / "Readme.md").write_text(content, encoding="utf-8")
+    (repo_path / "README.md").write_text(content, encoding="utf-8")
     (repo_path / "index.html").write_text("<h1>Hello, World!</h1>\n", encoding="utf-8")
     (repo_path / ".nojekyll").write_text("", encoding="utf-8")  # To enable GitHub Pages (Classic)
     license_text = open("./app/templates/license_template.txt", "r")\
