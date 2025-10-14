@@ -8,13 +8,13 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Tuple
+from datetime import datetime
 
 import requests
 
 from app.database_utils import get_task
 
-from .models import Attachment, SubmitTaskRequest
 
 DATA_URI_PATTERN = re.compile(r"^data:(?P<mime>[\w\-/+.]+)?(;charset=[\w-]+)?(?P<encoding>;base64)?,")
 
@@ -154,7 +154,13 @@ def write_instructions(repo_path: Path, task: str, brief: str, checks: list[str]
     content = "\n".join(instructions).strip() + "\n"
     (repo_path / "Readme.md").write_text(content, encoding="utf-8")
     (repo_path / "index.html").write_text("<h1>Hello, World!</h1>\n", encoding="utf-8")
-    (repo_path / ".jekyll").write_text("", encoding="utf-8")  # To enable GitHub Pages (Classic)
+    (repo_path / ".nojekyll").write_text("", encoding="utf-8")  # To enable GitHub Pages (Classic)
+    license_text = open("./app/templates/license_template.txt", "r")\
+                    .read()\
+                    .replace("[year]", datetime.now().strftime('%Y'))\
+                    .replace("[fullname]", "Autogen LLM App")
+    (repo_path / "LICENSE").write_text(license_text, encoding="utf-8")
+    (repo_path / ".gitignore").write_text('.llm_output*', encoding="utf-8")
 
 
 def save_attachments(repo_path: Path, attachments: list[dict[str, str]]) -> None:
@@ -191,6 +197,17 @@ def git_commit_and_push(repo_path: Path, owner: str, message: str) -> None:
     subprocess.run(["git", "commit", "-m", message], cwd=repo_path, check=True)
     subprocess.run(["git", "push", remote_url, "HEAD:main"], cwd=repo_path, check=True)
 
+    commit_hash = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    print(f"Pushed commit {commit_hash} to remote repository.")
+    truncated_hash = commit_hash[:7]
+    return truncated_hash
+
 
 def setup_local_repo(
     task: str,
@@ -211,9 +228,9 @@ def setup_local_repo(
     clone_repository(repo_clone_url, repo_path)
     write_instructions(repo_path, task, payload['brief'], json.loads(payload.get("checks")))
     save_attachments(repo_path, attachements or [])
-    git_commit_and_push(
+    commit_sha = git_commit_and_push(
         repo_path=repo_path,
         owner=owner,
         message="Add initial instructions and attachments",
     )
-    return repo_path
+    return repo_path, commit_sha

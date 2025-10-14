@@ -32,6 +32,7 @@ def initialize_db():
         cursor.execute("DROP TABLE IF EXISTS tasks")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
+                ----------------------------- Task based fields
                 task_id TEXT PRIMARY KEY,
                 email TEXT,
                 round INTEGER,
@@ -40,12 +41,20 @@ def initialize_db():
                 evaluation_url TEXT,
                 checks TEXT,
                 attachments TEXT,
+                ----------------------------- Data returned by LLM
+                llm_output_path TEXT,
+                created_files TEXT,
+                commit_message TEXT,
+                ----------------------------- Mutable fields for repository details
+                commit_hash TEXT,
+                ----------------------------- Immutable fields for repository details
                 repo_name TEXT,
                 repo_clone_url TEXT,
-                base_path TEXT,
+                base_path TEXT, -- Base folder where repos are stored
                 owner TEXT,
                 repo_local_path TEXT,
                 pages_url TEXT,
+                ----------------------------- System fields
                 status TEXT,
                 result TEXT,
                 error_message TEXT,

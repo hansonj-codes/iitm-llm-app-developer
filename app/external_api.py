@@ -1,0 +1,52 @@
+import requests
+import time
+
+from app.database_utils import get_task
+
+def exponential_backoff_retry(func, max_retries=20, initial_delay=1, backoff_factor=2, *args, **kwargs):
+    delay = initial_delay
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(delay)
+            delay *= backoff_factor
+
+def exponential_backoff_jitter_retry(func, max_retries=17, initial_delay=1, backoff_factor=1.8, jitter=0.5, *args, **kwargs):
+    import random
+    delay = initial_delay
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+            sleep_time = delay + random.uniform(-jitter, jitter)
+            time.sleep(max(0, sleep_time))
+            delay *= backoff_factor
+
+def send_round_completion_notification(task: str) -> None:
+    task_payload = get_task(task)
+    submit_payload = {
+        "email": task_payload.get("email"),
+        "task": task,
+        "round": task_payload.get("round"),
+        "nonce": task_payload.get("nonce"),
+        "repo_url": task_payload.get("repo_clone_url"),
+        "commit_sha": task_payload.get("commit_hash"),
+        "pages_url": task_payload.get("pages_url"),
+    }
+    evaluation_url = task_payload.get("evaluation_url")
+    headers = {
+        "Content-Type": "application/json",
+    }
+    def post_request():
+        response = requests.post(evaluation_url, json=submit_payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response
+
+    exponential_backoff_retry(post_request)
+
+

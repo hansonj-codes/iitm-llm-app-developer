@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -9,7 +10,10 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 
-from .github_utils import GitHubError, create_remote_repository, setup_local_repo, enable_github_pages
+from app.openai_llm_utils import construct_user_prompt, default_system_prompt, request_llm_and_get_output
+from app.xml_utils import create_files_from_response
+
+from .github_utils import GitHubError, create_remote_repository, git_commit_and_push, setup_local_repo, enable_github_pages
 from .models import SubmitTaskRequest
 from .database_utils import upsert_task, get_task
 
@@ -34,7 +38,6 @@ def handle_round_01(task: str) -> dict:
     """Create and initialise a repository for round 1 tasks."""
     base_path = Path(os.getenv("REPO_BASE_PATH", "./all_repositories")).resolve()
 
-    payload = get_task(task)
     for attempt in range(MAX_REPO_CREATION_ATTEMPTS):
         repo_suffix = uuid4().hex[:8]
         repo_name = f"{task}-{repo_suffix}"
@@ -60,11 +63,12 @@ def handle_round_01(task: str) -> dict:
             ) from exc
 
         try:
-            repo_path = setup_local_repo(
+            complete_repo_path, commit_sha = setup_local_repo(
                 task=task,
             )
             upsert_task(task, {
-                "repo_local_path": str(repo_path),
+                "repo_local_path": str(complete_repo_path),
+                "commit_hash": commit_sha,
             })
         except (GitHubError, OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
             raise HTTPException(
@@ -84,9 +88,50 @@ def handle_round_01(task: str) -> dict:
                 detail=f"Failed to enable GitHub Pages: {exc}",
             ) from exc
 
-        print(f"Successfully created and initialized repository: {repo_name}")
+        print(f"Successfully created and initialized bare repository: {repo_name}")
         print(f"Details: {get_task(task)}")
 
+        try:
+            user_prompt = construct_user_prompt(
+                task=task
+            )
+            llm_output = request_llm_and_get_output(
+                system_prompt=default_system_prompt(),
+                user_prompt=user_prompt,
+            )
+            llm_output_save_path = Path(complete_repo_path) / '.llm_output_round_1.txt'
+            with open(llm_output_save_path, 'w', encoding='utf-8') as f:
+                f.write(llm_output)
+            print(f"Saved LLM output to {llm_output_save_path}")
+            upsert_task(task, {
+                "llm_output_path": str(llm_output_save_path),
+            })
+            created_files = create_files_from_response(
+                task=task,
+                xml_file_path=llm_output_save_path,
+                repo_path=complete_repo_path,
+                additional_exclude_files=[],
+            )
+            upsert_task(task, {
+                "created_files": json.dumps(created_files),
+            })
+            payload = get_task(task)
+            round1_commit_sha = git_commit_and_push(
+                repo_path=complete_repo_path,
+                owner=payload["owner"],
+                message=payload.get("commit_message", "Initial commit from LLM")
+            )
+            upsert_task(task, {
+                "commit_hash": round1_commit_sha,
+            })
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to construct user prompt: {exc}",
+            ) from exc
+        
+        
+        
         return {"backend_message": f"Repository {repo_name} created successfully."}
 
     raise HTTPException(
