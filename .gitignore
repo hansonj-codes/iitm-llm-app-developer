@@ -6,3 +6,4 @@ __pycache__/
 .env
 all_repositories/
 .ruff_cache/
+tasks.db

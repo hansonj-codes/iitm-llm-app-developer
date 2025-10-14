@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 import subprocess
@@ -10,6 +11,8 @@ from pathlib import Path
 from typing import Iterable, Tuple
 
 import requests
+
+from app.database_utils import get_task
 
 from .models import Attachment, SubmitTaskRequest
 
@@ -55,7 +58,12 @@ def decode_data_uri(data_uri: str) -> Tuple[bytes, str]:
 
 
 def create_remote_repository(repo_name: str, description: str) -> dict:
-    """Create a GitHub repository using the authenticated user token."""
+    """Create a GitHub repository using the authenticated user token and enable GitHub Pages (Classic)."""
+    import os
+
+    class GitHubError(Exception):
+        pass
+
     token = os.getenv("GITHUB_TOKEN")
     if not token:
         raise GitHubError("Missing GITHUB_TOKEN environment variable.")
@@ -68,7 +76,7 @@ def create_remote_repository(repo_name: str, description: str) -> dict:
         "auto_init": False,
     }
 
-    response = requests.post(
+    create_repo_response = requests.post(
         api_url,
         json=payload,
         headers={
@@ -78,15 +86,48 @@ def create_remote_repository(repo_name: str, description: str) -> dict:
         timeout=30,
     )
 
-    if response.status_code == 201:
-        return response.json()
-
-    if response.status_code == 422 and "name already exists" in response.text.lower():
+    if create_repo_response.status_code == 201:
+        print(f"Created repository: {repo_name}")
+        return create_repo_response.json()
+    elif create_repo_response.status_code == 422 and "name already exists" in create_repo_response.text.lower():
         raise GitHubError("Repository with this name already exists.")
+    else:
+        raise GitHubError(
+            f"Failed to create repository ({create_repo_response.status_code}): {create_repo_response.text}"
+        )
 
-    raise GitHubError(
-        f"Failed to create repository ({response.status_code}): {response.text}"
+def enable_github_pages(repo_name: str, owner: str) -> None:
+    # <<code here>> — enable GitHub Pages (Classic Experience)
+
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise GitHubError("Missing GITHUB_TOKEN environment variable.")
+
+    pages_api_url = f"https://api.github.com/repos/{owner}/{repo_name}/pages"
+    pages_payload = {
+        "source": {
+            "branch": "main",
+            "path": "/"
+        }
+    }
+
+    pages_response = requests.post(
+        pages_api_url,
+        json=pages_payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+        },
+        timeout=30,
     )
+
+    if pages_response.status_code in (201, 204):
+        print(f"Enabled GitHub Pages for {repo_name} (Classic from main branch).")
+        return pages_response.json()
+    else:
+        raise GitHubError(
+            f"Failed to enable GitHub Pages ({pages_response.status_code}): {pages_response.text}"
+        )
 
 
 def clone_repository(clone_url: str, target_dir: Path) -> None:
@@ -100,25 +141,29 @@ def clone_repository(clone_url: str, target_dir: Path) -> None:
     )
 
 
-def write_instructions(repo_path: Path, payload: SubmitTaskRequest) -> None:
+def write_instructions(repo_path: Path, task: str, brief: str, checks: list[str]) -> None:
     """Create the instructions.txt file inside the repository."""
     instructions = [
-        f"Task: {payload.task}",
+        f"Task: {task}",
         "",
-        f"Brief: {payload.brief}",
+        f"Brief: {brief}",
         "",
         "Checks:",
-        *(f"- {item}" for item in payload.checks),
+        *(f"- {item}" for item in checks),
     ]
     content = "\n".join(instructions).strip() + "\n"
-    (repo_path / "instructions.txt").write_text(content, encoding="utf-8")
+    (repo_path / "Readme.md").write_text(content, encoding="utf-8")
+    (repo_path / "index.html").write_text("<h1>Hello, World!</h1>\n", encoding="utf-8")
+    (repo_path / ".jekyll").write_text("", encoding="utf-8")  # To enable GitHub Pages (Classic)
 
 
-def save_attachments(repo_path: Path, attachments: Iterable[Attachment]) -> None:
+def save_attachments(repo_path: Path, attachments: list[dict[str, str]]) -> None:
     """Persist attachments onto disk inside the repository."""
     for attachment in attachments:
-        data, _mime_type = decode_data_uri(attachment.url)
-        target_path = repo_path / attachment.name
+        attachment_name = attachment.get("name")
+        attachment_url = attachment.get("url")
+        data, _mime_type = decode_data_uri(attachment_url)
+        target_path = repo_path / attachment_name
         target_path.write_bytes(data)
 
 
@@ -148,21 +193,24 @@ def git_commit_and_push(repo_path: Path, owner: str, message: str) -> None:
 
 
 def setup_local_repo(
-    payload: SubmitTaskRequest,
-    repo_name: str,
-    repo_clone_url: str,
-    base_path: Path,
-    owner: str,
+    task: str,
 ) -> Path:
     """
     Clone the repository, populate files, and push the initial commit.
 
     Returns the local repository path.
     """
+    payload = get_task(task)
+    repo_name = payload['repo_name']
+    repo_clone_url = payload['repo_clone_url']
+    base_path = Path(payload['base_path'])
+    owner = payload['owner']
+    attachements = json.loads(payload.get("attachments"))
+
     repo_path = base_path / repo_name
     clone_repository(repo_clone_url, repo_path)
-    write_instructions(repo_path, payload)
-    save_attachments(repo_path, payload.attachments or [])
+    write_instructions(repo_path, task, payload['brief'], json.loads(payload.get("checks")))
+    save_attachments(repo_path, attachements or [])
     git_commit_and_push(
         repo_path=repo_path,
         owner=owner,
