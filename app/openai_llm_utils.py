@@ -4,9 +4,11 @@ import time
 import json
 from typing import List, Tuple, Optional
 
+from datauri import DataURI
 import requests
 
 from app.database_utils import get_task
+from app.xml_utils import texts_to_xml_cdata
 
 def call_response_api(
         openai_model: str,
@@ -184,6 +186,9 @@ def construct_user_prompt_for_round_01(task: str) -> str:
 ## Input attachements available in the repository:
 <<attachments>>
 
+## Content of input attachments that are text based, encoded in XML tags:
+<<attachments_text_xml>>
+
 ## What files to return and not to return:
  - Return the website's code files and README.md
  - Return a file "commit_message" that contains appropriate commit message
@@ -201,13 +206,37 @@ def construct_user_prompt_for_round_01(task: str) -> str:
     brief_line = make_list([payload['brief'].strip()])
     checks_lines = make_list(json.loads(payload['checks']) if payload['checks'] else [])
     loaded_attachments = json.loads(payload['attachments']) or []
-    attachments_lines = make_list(
-        [f'name: {att.get("name", "unnamed")}, type: {att.get("url", "").split(";")[0]}' for att in loaded_attachments]
-    )
+    attachments_lines_list = []
+    text_attachments_dict = {
+        'text': [],
+        'name': [],
+        'mime_type': []
+    }
+    for ld_att in loaded_attachments:
+        att_name = ld_att.get("name", "unnamed")
+        print('constructing llm query, processing:', att_name)
+        att_uri = DataURI(ld_att.get("url"))
+        _mime_type = str(att_uri.mimetype)
+        attachments_lines_list.append(f'path: {att_name}, mime_type: {_mime_type}')
+        if _mime_type and _mime_type.startswith('text'):
+            text_attachments_dict['text'].append(att_uri.data.decode('utf-8'))
+            text_attachments_dict['name'].append(att_name)
+            text_attachments_dict['mime_type'].append(_mime_type)
+
+    attachments_lines = make_list(attachments_lines_list)
+    if len(text_attachments_dict['name']) > 0:
+        attachments_text_data = texts_to_xml_cdata(
+            text_list=text_attachments_dict['text'],
+            name_list=text_attachments_dict['name'],
+            mime_type_list=text_attachments_dict['mime_type']
+        )
+    else:
+        attachments_text_data = '<attachments>\n</attachments>'
     repo_url = payload.get('repo_clone_url')
     user_prompt = user_prompt_template.replace("<<brief>>", brief_line)\
                                      .replace("<<checks>>", checks_lines)\
                                      .replace("<<attachments>>", attachments_lines)\
+                                     .replace("<<attachments_text_xml>>", attachments_text_data)\
                                      .replace("<<repo_url>>", repo_url)
     print(user_prompt)
     return user_prompt
@@ -227,8 +256,11 @@ def construct_user_prompt_for_round_02(task: str) -> str:
 ## Checks - The website will be evaluated based on the below given checks via Playwright
 <<checks>>
 
-## Input attachements available in the repository:
+## Input attachments available in the repository:
 <<attachments>>
+
+## Content of input attachments that are text based, encoded in XML tags:
+<<attachments_text_xml>>
 
 ## What files to return and not to return:
  - Return the website's code files and README.md
@@ -249,13 +281,37 @@ def construct_user_prompt_for_round_02(task: str) -> str:
     loaded_attachments_round_01 = json.loads(payload['round1_attachments']) or []
     loaded_attachments_round_02 = json.loads(payload['attachments']) or []
     loaded_attachments = loaded_attachments_round_01 + loaded_attachments_round_02
-    attachments_lines = make_list(
-        [f'name: {att.get("name", "unnamed")}, type: {att.get("url", "").split(";")[0]}' for att in loaded_attachments]
-    )
+    attachments_lines_list = []
+    text_attachments_dict = {
+        'text': [],
+        'name': [],
+        'mime_type': []
+    }
+    for ld_att in loaded_attachments:
+        att_name = ld_att.get("name", "unnamed")
+        print('constructing llm query, processing:', att_name)
+        att_uri = DataURI(ld_att.get("url"))
+        _mime_type = str(att_uri.mimetype)
+        attachments_lines_list.append(f'path: {att_name}, mime_type: {_mime_type}')
+        if _mime_type and _mime_type.startswith('text'):
+            text_attachments_dict['text'].append(att_uri.data.decode('utf-8'))
+            text_attachments_dict['name'].append(att_name)
+            text_attachments_dict['mime_type'].append(_mime_type)
+
+    attachments_lines = make_list(attachments_lines_list)
+    if len(text_attachments_dict['name']) > 0:
+        attachments_text_data = texts_to_xml_cdata(
+            text_list=text_attachments_dict['text'],
+            name_list=text_attachments_dict['name'],
+            mime_type_list=text_attachments_dict['mime_type']
+        )
+    else:
+        attachments_text_data = '<attachments>\n</attachments>'
     repo_files_xml = open(f"{payload.get('round1_llm_output_path')}", 'r', encoding='utf-8').read()
     user_prompt = user_prompt_template.replace("<<brief>>", brief_line)\
                                      .replace("<<checks>>", checks_lines)\
                                      .replace("<<attachments>>", attachments_lines)\
+                                     .replace("<<attachments_text_xml>>", attachments_text_data)\
                                      .replace("<<repo_files_xml>>", repo_files_xml)
     print(user_prompt)
     return user_prompt

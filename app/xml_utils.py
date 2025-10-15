@@ -3,6 +3,8 @@ import xml.etree.ElementTree as ET
 from typing import Generator
 from pathlib import Path
 
+from lxml import etree
+
 from .database_utils import upsert_task
 
 def is_valid_xml(text):
@@ -77,4 +79,18 @@ def create_files_from_response(task: str, xml_file_path: str | Path, repo_path: 
         print(f"Created file: {file_path_relative}")
     
     return created_files
+
+
+def texts_to_xml_cdata(text_list: list[str], name_list: list[str], mime_type_list: list[str]) -> str:
+    '''Convert texts to XML with proper CDATA sections'''
     
+    root = etree.Element("attachments")
+    
+    for text, pth, mim in zip(text_list, name_list, mime_type_list):
+        attachment = etree.SubElement(root, "attachment")
+        attachment.set("path", pth)
+        attachment.set("mime_type", mim)
+        # Add text as CDATA
+        attachment.text = etree.CDATA(text)
+    
+    return etree.tostring(root, pretty_print=True, encoding='unicode')
