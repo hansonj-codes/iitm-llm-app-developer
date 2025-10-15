@@ -6,13 +6,15 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from time import time
 from uuid import uuid4
+import traceback
 
 from fastapi import HTTPException, status
 
 from app.common_utils import get_current_utc_time
 from app.external_api import send_round_completion_notification
-from app.openai_llm_utils import construct_user_prompt_for_round_02, default_system_prompt, request_llm_and_get_output
+from app.openai_llm_utils import construct_user_prompt_for_round_01, construct_user_prompt_for_round_02, default_system_prompt, request_llm_and_get_output
 from app.xml_utils import create_files_from_response
 
 from .github_utils import GitHubError, create_remote_repository, git_commit_and_push, save_attachments, setup_local_repo, enable_github_pages
@@ -108,7 +110,7 @@ def handle_round_01(task: str) -> dict:
                 break
             print(f"Starting LLM interaction for task {task} as time elapsed {time_elapsed} is in safe range.")
             try:
-                user_prompt = construct_user_prompt_for_round_02(
+                user_prompt = construct_user_prompt_for_round_01(
                     task=task
                 )
                 llm_output = request_llm_and_get_output(
@@ -144,6 +146,7 @@ def handle_round_01(task: str) -> dict:
                 break  # Exit the while loop on success
             except Exception as exc:
                 print(f"LLM interaction failed for task {task}, retrying if time permits: {exc}")
+                traceback.print_exc()
                 continue  # Retry the LLM interaction if time permits
         
         try:
@@ -241,6 +244,7 @@ def handle_round_02(task: str) -> dict:
             break  # Exit the while loop on success
         except Exception as exc:
             print(f"LLM interaction failed for task {task}, retrying if time permits: {exc}")
+            traceback.print_exc()
             continue  # Retry the LLM interaction if time permits
     
     try:
