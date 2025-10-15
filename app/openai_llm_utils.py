@@ -186,7 +186,7 @@ def construct_user_prompt_for_round_01(task: str) -> str:
 ## Input attachements available in the repository:
 <<attachments>>
 
-## Content of input attachments that are text based, encoded in XML tags:
+## Content of input attachments (truncated) that are text based, encoded in XML tags:
 <<attachments_text_xml>>
 
 ## What files to return and not to return:
@@ -226,7 +226,7 @@ def construct_user_prompt_for_round_01(task: str) -> str:
     attachments_lines = make_list(attachments_lines_list)
     if len(text_attachments_dict['name']) > 0:
         attachments_text_data = texts_to_xml_cdata(
-            text_list=text_attachments_dict['text'],
+            text_list=text_attachments_dict['text'][:100],
             name_list=text_attachments_dict['name'],
             mime_type_list=text_attachments_dict['mime_type']
         )
@@ -259,7 +259,7 @@ def construct_user_prompt_for_round_02(task: str) -> str:
 ## Input attachments available in the repository:
 <<attachments>>
 
-## Content of input attachments that are text based, encoded in XML tags:
+## Content of input attachments (truncated) that are text based, encoded in XML tags:
 <<attachments_text_xml>>
 
 ## What files to return and not to return:
@@ -301,7 +301,7 @@ def construct_user_prompt_for_round_02(task: str) -> str:
     attachments_lines = make_list(attachments_lines_list)
     if len(text_attachments_dict['name']) > 0:
         attachments_text_data = texts_to_xml_cdata(
-            text_list=text_attachments_dict['text'],
+            text_list=text_attachments_dict['text'][:100],
             name_list=text_attachments_dict['name'],
             mime_type_list=text_attachments_dict['mime_type']
         )
