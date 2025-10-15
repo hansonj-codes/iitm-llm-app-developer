@@ -21,7 +21,7 @@ if os.getenv("SPACE_ID") is None:  # SPACE_ID is set by HF automatically
     from dotenv import load_dotenv
     load_dotenv()
 
-logger = logging.getLogger('uvicorn.error')
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 @asynccontextmanager
