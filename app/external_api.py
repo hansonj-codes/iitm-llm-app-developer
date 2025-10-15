@@ -52,6 +52,7 @@ def send_round_completion_notification(task: str) -> None:
         response.raise_for_status()
         return response
 
-    exponential_backoff_retry(post_request)
+    success_response = exponential_backoff_retry(post_request)
+    print(f"Successfully notified evaluation service for task {task}, response: {success_response.text}")
 
 
