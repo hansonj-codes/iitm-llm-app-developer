@@ -183,14 +183,6 @@ def handle_round_01(task: str) -> dict:
         # except Exception as exc:
         #     print(f"Warning: Failed to check GitHub Pages status for {repo_name}: {exc}, proceeding to notify evaluation service.")
 
-        # try:
-        #     send_round_completion_notification(task)
-        # except Exception as exc:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_502_BAD_GATEWAY,
-        #         detail=f"Failed to notify evaluation service: {exc}",
-        #     ) from exc
-
         # Wait a fixed time for pages to be built before notifying evaluation service
         time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
         time_left = ROUND_01_TIMEOUT_SECONDS - time_elapsed
@@ -199,7 +191,16 @@ def handle_round_01(task: str) -> dict:
         else:
             print(f"Waiting {PAGES_BUILD_TIME_ESTIMATE} seconds for GitHub Pages build to complete...")
             sleep(PAGES_BUILD_TIME_ESTIMATE)
-                        
+
+        try:
+            print('============= Sending details to evaluation url for round 1 ============')
+            send_round_completion_notification(task)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to notify evaluation service: {exc}",
+            ) from exc
+
         payload = get_task(task)
         print(f"Successfully completed round 1 for repository: {repo_name}, task payload: {payload}")
         return {"backend_message": f"Repository {repo_name} created successfully."}
@@ -324,6 +325,7 @@ def handle_round_02(task: str) -> dict:
         sleep(PAGES_BUILD_TIME_ESTIMATE)
 
     try:
+        print('============= Sending details to evaluation url for round 2 ============')
         send_round_completion_notification(task)
     except Exception as exc:
         raise HTTPException(
