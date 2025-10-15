@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .common_utils import get_current_utc_time
 from .models import SubmitTaskRequest, SubmitTaskResponse
 from .task_handler import handle_llm_task
-from .database_utils import initialize_db, upsert_task
+from .database_utils import initialize_db, upsert_task, get_task
 from fastapi import BackgroundTasks
 
 # Load .env only if running locally
@@ -75,6 +75,22 @@ async def submit_task(payload: SubmitTaskRequest, background_tasks: BackgroundTa
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid secret.",
         )
+
+    # If round = 1, and task already exists, report warning
+    if payload.round == 1:
+        existing_task = get_task(payload.task)
+        if existing_task is not None:
+            logger.warning(f"Task with ID {payload.task} already exists for round 1. Overwriting.")
+
+    # Check if task already exists if round = 2
+    # If not, raise error
+    if payload.round == 2:
+        existing_task = get_task(payload.task)
+        if existing_task is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Task with ID {payload.task} does not exist for round 2.",
+            )
 
     # Record the new task in the database with 'pending' status
     try:

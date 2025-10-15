@@ -169,7 +169,7 @@ Remember: Your output will be directly parsed and deployed. Code quality and cor
 """
     return system_prompt
 
-def construct_user_prompt(task: str) -> str:
+def construct_user_prompt_for_round_01(task: str) -> str:
     user_prompt_template =\
 """
 ## Task
@@ -212,3 +212,51 @@ def construct_user_prompt(task: str) -> str:
     print(user_prompt)
     return user_prompt
 
+
+def construct_user_prompt_for_round_02(task: str) -> str:
+    user_prompt_template =\
+"""
+## Task
+ - Update the below given javascript website according to the Task brief
+ - Make sure that the udpated website can be as-is deployed by Github Pages.
+ - Only edit what is required, and make sure that existing flow is NOT broken.
+
+## Task brief
+<<brief>>
+
+## Checks - The website will be evaluated based on the below given checks via Playwright
+<<checks>>
+
+## Input attachements available in the repository:
+<<attachments>>
+
+## What files to return and not to return:
+ - Return the website's code files and README.md
+ - Return a file "commit_message" that contains appropriate commit message
+ - Do NOT return LICENSE or any attachment file that was passed
+ - Do NOT return any text outside XML tags as the output will be parsed by a XML parser
+
+## Current state of repository encoded in XML tags:
+<<repo_files_xml>>
+"""
+    def make_list(items: List[str]) -> str:
+        if not items:
+            return " - None"
+        return "\n".join(f" - {item}" for item in items)
+    payload = get_task(task)
+    brief_line = make_list([payload['brief'].strip()])
+    checks_lines = make_list(json.loads(payload['checks']) if payload['checks'] else [])
+    loaded_attachments_round_01 = json.loads(payload['round1_attachments']) or []
+    loaded_attachments_round_02 = json.loads(payload['attachments']) or []
+    loaded_attachments = loaded_attachments_round_01 + loaded_attachments_round_02
+    attachments_lines = make_list(
+        [f'name: {att.get("name", "unnamed")}, type: {att.get("url", "").split(";")[0]}' for att in loaded_attachments]
+    )
+    repo_files_xml = open(f"{payload.get('round1_llm_output_path')}", 'r', encoding='utf-8').read()
+    repo_url = payload.get('repo_clone_url')
+    user_prompt = user_prompt_template.replace("<<brief>>", brief_line)\
+                                     .replace("<<checks>>", checks_lines)\
+                                     .replace("<<attachments>>", attachments_lines)\
+                                     .replace("<<repo_files_xml>>", repo_files_xml)
+    print(user_prompt)
+    return user_prompt

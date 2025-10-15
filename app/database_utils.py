@@ -160,7 +160,7 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
             return dict(row)
         return None
 
-def archive_task_round_1(task_id: str) -> bool:
+def archive_task_round_01(task_id: str) -> bool:
     """
     Archive the current round of a task by copying current fields to round1_ fields.
     
