@@ -219,14 +219,14 @@ def construct_user_prompt_for_round_01(task: str) -> str:
         _mime_type = str(att_uri.mimetype)
         attachments_lines_list.append(f'path: {att_name}, mime_type: {_mime_type}')
         if _mime_type and _mime_type.startswith('text'):
-            text_attachments_dict['text'].append(att_uri.data.decode('utf-8'))
+            text_attachments_dict['text'].append(att_uri.data.decode('utf-8')[:100])
             text_attachments_dict['name'].append(att_name)
             text_attachments_dict['mime_type'].append(_mime_type)
 
     attachments_lines = make_list(attachments_lines_list)
     if len(text_attachments_dict['name']) > 0:
         attachments_text_data = texts_to_xml_cdata(
-            text_list=text_attachments_dict['text'][:100],
+            text_list=text_attachments_dict['text'],
             name_list=text_attachments_dict['name'],
             mime_type_list=text_attachments_dict['mime_type']
         )
@@ -294,7 +294,7 @@ def construct_user_prompt_for_round_02(task: str) -> str:
         _mime_type = str(att_uri.mimetype)
         attachments_lines_list.append(f'path: {att_name}, mime_type: {_mime_type}')
         if _mime_type and _mime_type.startswith('text'):
-            text_attachments_dict['text'].append(att_uri.data.decode('utf-8'))
+            text_attachments_dict['text'].append(att_uri.data.decode('utf-8')[:100])
             text_attachments_dict['name'].append(att_name)
             text_attachments_dict['mime_type'].append(_mime_type)
 
