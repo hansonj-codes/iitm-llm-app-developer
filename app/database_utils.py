@@ -30,7 +30,7 @@ def initialize_db():
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # cursor.execute("DROP TABLE IF EXISTS tasks")
+        cursor.execute("DROP TABLE IF EXISTS tasks")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 ----------------------------- Task based fields
@@ -40,8 +40,8 @@ def initialize_db():
                 nonce TEXT,
                 brief TEXT,
                 evaluation_url TEXT,
-                checks TEXT,
-                attachments TEXT,
+                checks TEXT DEFAULT '[]', -- JSON array of checklist items
+                attachments TEXT DEFAULT '[]', -- JSON array of attachments
                 ----------------------------- Data returned by LLM
                 llm_output_path TEXT,
                 created_files TEXT,
@@ -57,8 +57,8 @@ def initialize_db():
                 round1_nonce TEXT,
                 round1_brief TEXT,
                 round1_evaluation_url TEXT,
-                round1_checks TEXT,
-                round1_attachments TEXT,
+                round1_checks TEXT DEFAULT '[]', -- JSON array of checklist items
+                round1_attachments TEXT DEFAULT '[]', -- JSON array of attachments
                 round1_llm_output_path TEXT,
                 round1_created_files TEXT,
                 round1_commit_message TEXT,

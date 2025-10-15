@@ -237,3 +237,22 @@ def setup_local_repo(
         message="Add initial instructions and attachments",
     )
     return repo_path, commit_sha
+
+# Check if the page has been deployed successfully
+def check_github_pages_status(owner: str, repo_name: str) -> str:
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:     
+        raise GitHubError("Missing GITHUB_TOKEN environment variable.")
+    pages_api_url = f"https://api.github.com/repos/{owner}/{repo_name}/pages"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    response = requests.get(pages_api_url, headers=headers, timeout=30)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("status", "unknown")
+    else:
+        raise GitHubError(
+            f"Failed to fetch GitHub Pages status ({response.status_code}): {response.text}"
+        )

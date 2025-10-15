@@ -27,10 +27,11 @@ class SubmitTaskRequest(BaseModel):
         default_factory=list,
         description="Evaluation checklist items.",
     )
-    evaluation_url: HttpUrl = Field(
+    evaluation_url: str = Field(
         ...,
         description="Callback URL that receives repository details.",
     )
+    # attachments is not mandatory, the default is an empty list
     attachments: List[Attachment] = Field(
         default_factory=list,
         description="Optional list of attachments encoded as data URIs.",

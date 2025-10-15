@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-from time import time
+from time import sleep
 from uuid import uuid4
 import traceback
 
@@ -17,14 +17,16 @@ from app.external_api import send_round_completion_notification
 from app.openai_llm_utils import construct_user_prompt_for_round_01, construct_user_prompt_for_round_02, default_system_prompt, request_llm_and_get_output
 from app.xml_utils import create_files_from_response
 
-from .github_utils import GitHubError, create_remote_repository, git_commit_and_push, save_attachments, setup_local_repo, enable_github_pages
+from .github_utils import GitHubError, check_github_pages_status, create_remote_repository, git_commit_and_push, save_attachments, setup_local_repo, enable_github_pages
 from .database_utils import archive_task_round_01, parse_db_timestamp, upsert_task, get_task
 
-MAX_REPO_CREATION_ATTEMPTS = 5
+MAX_REPO_CREATION_ATTEMPTS = 30
 ROUND_01_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
-ROUND_01_OTHER_TASKS_TIME_REQUIRED = 30
+ROUND_01_BUFFER_TIME_REQUIRED = 30
 ROUND_02_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
-ROUND_02_OTHER_TASKS_TIME_REQUIRED = 30
+ROUND_02_BUFFER_TIME_REQUIRED = 30
+# PAGES_BUILD_WAIT_UNTIL_TIME_LEFT = 60  # 60 seconds
+PAGES_BUILD_TIME_ESTIMATE = 20  # 20 seconds
 
 def handle_llm_task(task: str) -> dict:
     """Delegate a task based on its round identifier."""
@@ -100,12 +102,13 @@ def handle_round_01(task: str) -> dict:
 
         # Interact with LLM to generate task solution files and commit
         # Since LLM calls can be flaky, we wrap this in a try-except to handle failures gracefully
-        # This block is retried until time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_01_OTHER_TASKS_TIME_REQUIRED < ROUND_01_TIMEOUT_SECONDS
+        # This block is retried until time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_01_BUFFER_TIME_REQUIRED < ROUND_01_TIMEOUT_SECONDS
+        payload = get_task(task)
+        task_created_at = parse_db_timestamp(payload.get("created_at"))
         while True:
-            payload = get_task(task)
-            task_created_at = parse_db_timestamp(payload.get("created_at"))
             time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
-            if time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_01_OTHER_TASKS_TIME_REQUIRED > ROUND_01_TIMEOUT_SECONDS:
+            time_left = ROUND_01_TIMEOUT_SECONDS - time_elapsed
+            if LLM_APPROX_TIME_REQUIRED + ROUND_01_BUFFER_TIME_REQUIRED > time_left:
                 print("Lack of time to safely complete LLM interaction, so skipping it and submitting bare repo.")
                 break
             print(f"Starting LLM interaction for task {task} as time elapsed {time_elapsed} is in safe range.")
@@ -148,22 +151,57 @@ def handle_round_01(task: str) -> dict:
                 print(f"LLM interaction failed for task {task}, retrying if time permits: {exc}")
                 traceback.print_exc()
                 continue  # Retry the LLM interaction if time permits
-        
-        try:
-            send_round_completion_notification(task)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to notify evaluation service: {exc}",
-            ) from exc
-        
+
         try:
             archive_task_round_01(task)
         except Exception as exc:
             print(f"Warning: Failed to archive round 1 task {task}: {exc}")
-                
+        
+        # check if the pages has been built every 10 seconds, until timeout is nearing
+        # payload = get_task(task)
+        # try:
+        #     while True:
+        #         time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
+        #         time_left = ROUND_01_TIMEOUT_SECONDS - time_elapsed
+        #         if time_left < PAGES_BUILD_WAIT_UNTIL_TIME_LEFT:
+        #             print("Not enough time left to wait for pages build, proceeding to notify evaluation service.")
+        #             break
+        #         print("Waiting 10 seconds for GitHub Pages build to complete...")
+        #         sleep(1)
+        #         try:
+        #             pages_status = check_github_pages_status(
+        #                 repo_name=payload['repo_name'],
+        #                 owner=payload["owner"],
+        #             )
+        #             print(f"GitHub Pages build status: {pages_status}")
+        #             if pages_status == "built":
+        #                 print("GitHub Pages build completed successfully.")
+        #                 break
+        #         except Exception as exc:
+        #             print(f"Warning: Failed to check GitHub Pages status for {repo_name}: {exc}, retrying in 10 seconds.")
+        #             continue
+        # except Exception as exc:
+        #     print(f"Warning: Failed to check GitHub Pages status for {repo_name}: {exc}, proceeding to notify evaluation service.")
+
+        # try:
+        #     send_round_completion_notification(task)
+        # except Exception as exc:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_502_BAD_GATEWAY,
+        #         detail=f"Failed to notify evaluation service: {exc}",
+        #     ) from exc
+
+        # Wait a fixed time for pages to be built before notifying evaluation service
+        time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
+        time_left = ROUND_01_TIMEOUT_SECONDS - time_elapsed
+        if PAGES_BUILD_TIME_ESTIMATE + ROUND_01_BUFFER_TIME_REQUIRED > time_left:
+            print("Not enough time left to wait for pages build, proceeding to notify evaluation service.")
+        else:
+            print(f"Waiting {PAGES_BUILD_TIME_ESTIMATE} seconds for GitHub Pages build to complete...")
+            sleep(PAGES_BUILD_TIME_ESTIMATE)
+                        
         payload = get_task(task)
-        print(f"Successfully completed round 2 for repository: {repo_name}, task payload: {payload}")
+        print(f"Successfully completed round 1 for repository: {repo_name}, task payload: {payload}")
         return {"backend_message": f"Repository {repo_name} created successfully."}
 
     raise HTTPException(
@@ -176,7 +214,7 @@ def handle_round_02(task: str) -> dict:
     """Placeholder for future round 2 handling logic."""
     # Interact with LLM to generate task solution files and commit
     # Since LLM calls can be flaky, we wrap this in a try-except to handle failures gracefully
-    # This block is retried until time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_02_OTHER_TASKS_TIME_REQUIRED < ROUND_02_TIMEOUT_SECONDS
+    # This block is retried until time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_02_BUFFER_TIME_REQUIRED < ROUND_02_TIMEOUT_SECONDS
     LLM_APPROX_TIME_REQUIRED = int(os.getenv("OPENAI_API_REQUEST_TIMEOUT"))  # seconds
     payload = get_task(task)
     complete_repo_path = payload.get("repo_local_path")
@@ -205,7 +243,8 @@ def handle_round_02(task: str) -> dict:
     while True:
         task_created_at = parse_db_timestamp(payload.get("created_at"))
         time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
-        if time_elapsed + LLM_APPROX_TIME_REQUIRED + ROUND_02_OTHER_TASKS_TIME_REQUIRED > ROUND_02_TIMEOUT_SECONDS:
+        time_left = ROUND_02_TIMEOUT_SECONDS - time_elapsed
+        if LLM_APPROX_TIME_REQUIRED + ROUND_02_BUFFER_TIME_REQUIRED > time_left:
             print("Lack of time to safely complete LLM interaction, so skipping it and submitting bare repo.")
             break
         print(f"Starting LLM interaction for task {task} as time elapsed {time_elapsed} is in safe range.")
@@ -248,7 +287,42 @@ def handle_round_02(task: str) -> dict:
             print(f"LLM interaction failed for task {task}, retrying if time permits: {exc}")
             traceback.print_exc()
             continue  # Retry the LLM interaction if time permits
-    
+
+    # check if the pages has been built every 10 seconds, until timeout is nearing
+    # payload = get_task(task)
+    # try:
+    #     while True:
+    #         time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
+    #         time_left = ROUND_01_TIMEOUT_SECONDS - time_elapsed
+    #         if time_left < PAGES_BUILD_WAIT_UNTIL_TIME_LEFT:
+    #             print("Not enough time left to wait for pages build, proceeding to notify evaluation service.")
+    #             break
+    #         print("Waiting 10 seconds for GitHub Pages build to complete...")
+    #         sleep(1)
+    #         try:
+    #             pages_status = check_github_pages_status(
+    #                 repo_name=payload['repo_name'],
+    #                 owner=payload["owner"],
+    #             )
+    #             print(f"GitHub Pages build status: {pages_status}")
+    #             if pages_status == "built":
+    #                 print("GitHub Pages build completed successfully.")
+    #                 break
+    #         except Exception as exc:
+    #             print(f"Warning: Failed to check GitHub Pages status for {repo_name}: {exc}, retrying in 10 seconds.")
+    #             continue
+    # except Exception as exc:
+    #     print(f"Warning: Failed to check GitHub Pages status for {repo_name}: {exc}, proceeding to notify evaluation service.")
+
+    # Wait a fixed time for pages to be built before notifying evaluation service
+    time_elapsed = (get_current_utc_time() - task_created_at).total_seconds()
+    time_left = ROUND_02_TIMEOUT_SECONDS - time_elapsed
+    if PAGES_BUILD_TIME_ESTIMATE + ROUND_02_BUFFER_TIME_REQUIRED > time_left:
+        print("Not enough time left to wait for pages build, proceeding to notify evaluation service.")
+    else:
+        print(f"Waiting {PAGES_BUILD_TIME_ESTIMATE} seconds for GitHub Pages build to complete...")
+        sleep(PAGES_BUILD_TIME_ESTIMATE)
+
     try:
         send_round_completion_notification(task)
     except Exception as exc:
