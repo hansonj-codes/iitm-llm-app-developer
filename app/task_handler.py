@@ -17,7 +17,7 @@ from app.external_api import send_round_completion_notification
 from app.openai_llm_utils import construct_user_prompt_for_round_01, construct_user_prompt_for_round_02, default_system_prompt, request_llm_and_get_output
 from app.xml_utils import create_files_from_response
 
-from .github_utils import GitHubError, check_github_pages_status, create_remote_repository, git_commit_and_push, save_attachments, setup_local_repo, enable_github_pages
+from .github_utils import GitHubError, create_remote_repository, git_commit_and_push, save_attachments, setup_local_repo, enable_github_pages
 from .database_utils import archive_task_round_01, parse_db_timestamp, upsert_task, get_task
 
 MAX_REPO_CREATION_ATTEMPTS = 30

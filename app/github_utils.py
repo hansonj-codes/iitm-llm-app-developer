@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Tuple
 from datetime import datetime
 
 import requests
+from datauri import DataURI
 
 from app.database_utils import get_task
 
@@ -29,32 +28,32 @@ def ensure_base_path(base_path: Path) -> Path:
     return base_path
 
 
-def decode_data_uri(data_uri: str) -> Tuple[bytes, str]:
-    """
-    Decode a data URI into bytes and return the suggested file extension.
+# def decode_data_uri(data_uri: str) -> Tuple[bytes, str]:
+#     """
+#     Decode a data URI into bytes and return the suggested file extension.
 
-    Returns:
-        Tuple of decoded bytes and MIME type string.
-    Raises:
-        ValueError if the payload is malformed or unsupported.
-    """
-    match = DATA_URI_PATTERN.match(data_uri)
-    if not match:
-        raise ValueError("Attachment is not a valid data URI.")
+#     Returns:
+#         Tuple of decoded bytes and MIME type string.
+#     Raises:
+#         ValueError if the payload is malformed or unsupported.
+#     """
+#     match = DATA_URI_PATTERN.match(data_uri)
+#     if not match:
+#         raise ValueError("Attachment is not a valid data URI.")
 
-    header, data_part = data_uri.split(",", 1)
-    is_base64 = ";base64" in header
+#     header, data_part = data_uri.split(",", 1)
+#     is_base64 = ";base64" in header
 
-    if is_base64:
-        try:
-            payload = base64.b64decode(data_part)
-        except (base64.binascii.Error, ValueError) as exc:  # pragma: no cover
-            raise ValueError("Failed to decode base64 data URI payload.") from exc
-    else:
-        payload = data_part.encode("utf-8")
+#     if is_base64:
+#         try:
+#             payload = base64.b64decode(data_part)
+#         except (base64.binascii.Error, ValueError) as exc:  # pragma: no cover
+#             raise ValueError("Failed to decode base64 data URI payload.") from exc
+#     else:
+#         payload = data_part.encode("utf-8")
 
-    mime_type = match.group("mime") or "application/octet-stream"
-    return payload, mime_type
+#     mime_type = match.group("mime") or "application/octet-stream"
+#     return payload, mime_type
 
 
 def create_remote_repository(repo_name: str, description: str) -> dict:
@@ -169,8 +168,9 @@ def save_attachments(repo_path: str | Path, attachments: list[dict[str, str]]) -
     repo_path = Path(repo_path)
     for attachment in attachments:
         attachment_name = attachment.get("name")
-        attachment_url = attachment.get("url")
-        data, _mime_type = decode_data_uri(attachment_url)
+        attachment_uri = DataURI(attachment.get("url"))
+        _mime_type = attachment_uri.mimetype
+        data = attachment_uri.data
         target_path = repo_path / attachment_name
         target_path.write_bytes(data)
 

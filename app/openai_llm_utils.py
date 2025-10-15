@@ -253,7 +253,6 @@ def construct_user_prompt_for_round_02(task: str) -> str:
         [f'name: {att.get("name", "unnamed")}, type: {att.get("url", "").split(";")[0]}' for att in loaded_attachments]
     )
     repo_files_xml = open(f"{payload.get('round1_llm_output_path')}", 'r', encoding='utf-8').read()
-    repo_url = payload.get('repo_clone_url')
     user_prompt = user_prompt_template.replace("<<brief>>", brief_line)\
                                      .replace("<<checks>>", checks_lines)\
                                      .replace("<<attachments>>", attachments_lines)\
