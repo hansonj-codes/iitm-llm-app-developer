@@ -162,6 +162,8 @@ def handle_round_01(task: str) -> dict:
         except Exception as exc:
             print(f"Warning: Failed to archive round 1 task {task}: {exc}")
                 
+        payload = get_task(task)
+        print(f"Successfully completed round 2 for repository: {repo_name}, task payload: {payload}")
         return {"backend_message": f"Repository {repo_name} created successfully."}
 
     raise HTTPException(
@@ -255,4 +257,6 @@ def handle_round_02(task: str) -> dict:
             detail=f"Failed to notify evaluation service: {exc}",
         ) from exc
     
-    return {"backend_message": f"Repository {repo_name} created successfully."}
+    payload = get_task(task)
+    print(f"Successfully completed round 2 for repository: {repo_name}, task payload: {payload}")
+    return {"backend_message": f"Repository {repo_name} updated successfully."}

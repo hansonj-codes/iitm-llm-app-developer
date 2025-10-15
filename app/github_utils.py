@@ -141,8 +141,9 @@ def clone_repository(clone_url: str, target_dir: Path) -> None:
     )
 
 
-def write_instructions(repo_path: Path, task: str, brief: str, checks: list[str]) -> None:
+def write_instructions(repo_path: str | Path, task: str, brief: str, checks: list[str]) -> None:
     """Create the instructions.txt file inside the repository."""
+    repo_path = Path(repo_path)
     instructions = [
         f"Task: {task}",
         "",
@@ -163,8 +164,9 @@ def write_instructions(repo_path: Path, task: str, brief: str, checks: list[str]
     (repo_path / ".gitignore").write_text('.llm_output*', encoding="utf-8")
 
 
-def save_attachments(repo_path: Path, attachments: list[dict[str, str]]) -> None:
+def save_attachments(repo_path: str | Path, attachments: list[dict[str, str]]) -> None:
     """Persist attachments onto disk inside the repository."""
+    repo_path = Path(repo_path)
     for attachment in attachments:
         attachment_name = attachment.get("name")
         attachment_url = attachment.get("url")
@@ -173,13 +175,14 @@ def save_attachments(repo_path: Path, attachments: list[dict[str, str]]) -> None
         target_path.write_bytes(data)
 
 
-def git_commit_and_push(repo_path: Path, owner: str, message: str) -> None:
+def git_commit_and_push(repo_path: str | Path, owner: str, message: str) -> None:
     """Commit all changes and push them to the remote main branch."""
     env = os.environ.copy()
     token = env.get("GITHUB_TOKEN")
     if not token:
         raise GitHubError("Missing GITHUB_TOKEN environment variable for git push.")
 
+    repo_path = Path(repo_path)
     repo_name = repo_path.name
     remote_url = f"https://{owner}:{token}@github.com/{owner}/{repo_name}.git"
 

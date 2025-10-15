@@ -30,7 +30,7 @@ def initialize_db():
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DROP TABLE IF EXISTS tasks")
+        # cursor.execute("DROP TABLE IF EXISTS tasks")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 ----------------------------- Task based fields
