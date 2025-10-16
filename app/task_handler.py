@@ -26,7 +26,7 @@ ROUND_01_BUFFER_TIME_REQUIRED = 30
 ROUND_02_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
 ROUND_02_BUFFER_TIME_REQUIRED = 30
 # PAGES_BUILD_WAIT_UNTIL_TIME_LEFT = 60  # 60 seconds
-PAGES_BUILD_TIME_ESTIMATE = 40  # 20 seconds
+PAGES_BUILD_TIME_ESTIMATE = 50  # 20 seconds
 
 def handle_llm_task(task: str) -> dict:
     """Delegate a task based on its round identifier."""
