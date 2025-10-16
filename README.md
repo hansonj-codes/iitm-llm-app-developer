@@ -40,6 +40,7 @@ The application accepts authenticated build requests, provisions a new GitHub re
 - Regression test suite powered by `pytest` and Hypothesis strategies.
 
 ## Architecture Overview
+```
 .
 |-- app/
 |   |-- main.py                  # FastAPI entrypoint and HTTP surface
@@ -63,7 +64,7 @@ The application accepts authenticated build requests, provisions a new GitHub re
 |-- Dockerfile                   # Dockerfile for deployment
 |-- LICENSE                      # MIT LICENSE
 `-- README.md                    # Project overview and usage guide
-
+```
 
 ## Requirements
 - Python 3.10 or later.
