@@ -81,8 +81,8 @@ python -m venv .venv
 source .venv/bin/activate                # Windows: .venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
-export LLM_APP_DEVELOPER_SECRET="secret" # shared secret with the caller
-export GITHUB_TOKEN="ghp_yourtoken"      # token with repo rights
+# If using local machine, store all the env variables in .env file
+# For deployment machine, ensure that all variables are available as env variables
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -91,8 +91,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 uv venv
 source .venv/bin/activate
 uv pip sync
-export LLM_APP_DEVELOPER_SECRET="secret"
-export GITHUB_TOKEN="ghp_yourtoken"
+# If using local machine, store all the env variables in .env file
+# For deployment machine, ensure that all variables are available as env variables
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
