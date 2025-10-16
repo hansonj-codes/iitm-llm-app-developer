@@ -1,5 +1,5 @@
 ---
-title: Iitm Llm App Developer
+title: IITM LLM App Developer
 emoji: 🏢
 colorFrom: red
 colorTo: red
@@ -14,18 +14,30 @@ app_port: 7777
 
 Serverless-friendly FastAPI service that provisions starter repositories for IIT Madras LLM application development tasks. It accepts an authenticated task submission, scaffolds a GitHub repository with task instructions and attachments, and pushes the initial commit on behalf of the operator.
 
-## Guiding Principles
-- **Clarity first:** Explain what the project does, who it is for, and how it fits into the wider workflow.
-- **Actionable steps:** Document how to install dependencies, configure secrets, run the API, and execute tests.
-- **Discoverability:** Surface key commands, project layout, and troubleshooting tips to shorten onboarding time.
-- **Maintainability:** Reference configuration knobs and automation so future contributors understand the moving pieces.
+## Table of Contents
+- [About the Service](#about-the-service)
+- [Features](#features)
+- [Architecture Overview](#architecture-overview)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Running the API](#running-the-api)
+- [API Usage](#api-usage)
+- [Testing](#testing)
+- [Development Workflow Tips](#development-workflow-tips)
+- [Deployment Notes](#deployment-notes)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+## About the Service
+The application accepts authenticated build requests, provisions a new GitHub repository seeded with task instructions, and pushes an initial commit. It is designed for IIT Madras LLM application rounds where fast turnaround and reproducibility matter.
 
 ## Features
-- FastAPI endpoint (`POST /submit-task`) for authenticated task intake.
-- Background provisioning of round 1 repositories with unique suffixes.
-- GitHub automation for repository creation, cloning, file generation, and pushing the initial commit.
-- Attachment handling via Data URI decoding.
-- pytest + Hypothesis test suite covering core utilities.
+- FastAPI endpoint (`POST /submit-task`) that validates authenticated task submissions.
+- Background job that clones a template, writes incoming instructions, persists attachments, and pushes commits.
+- GitHub API helpers to create repositories, manage remotes, and guard against name collisions.
+- Data URI attachment handling with type-aware decoding.
+- Regression test suite powered by `pytest` and Hypothesis strategies.
 
 ## Architecture Overview
 ```
@@ -40,27 +52,51 @@ Serverless-friendly FastAPI service that provisions starter repositories for IIT
 `-- README.md
 ```
 
-## Prerequisites
-- Python 3.10+ and pip.
-- Git 2.30+ installed and on `PATH`.
-- GitHub personal access token with `repo` scope stored in `GITHUB_TOKEN`.
+## Requirements
+- Python 3.10 or later.
+- Git 2.30+ available on `PATH`.
+- GitHub personal access token with `repo` scope exported as `GITHUB_TOKEN`.
+- (Optional) [`uv`](https://github.com/astral-sh/uv) for rapid dependency syncing.
 
 ## Quick Start
+Create an isolated environment, install dependencies, and launch the API. Choose either `pip` or `uv` depending on preference.
+
+### Using pip
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+source .venv/bin/activate                # Windows: .venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
-export LLM_APP_DEVELOPER_SECRET="super-secret"   # shared secret with caller
-export GITHUB_TOKEN="ghp_yourtoken"              # token with repo rights
+export LLM_APP_DEVELOPER_SECRET="secret" # shared secret with the caller
+export GITHUB_TOKEN="ghp_yourtoken"      # token with repo rights
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Optional environment variables:
-- `REPO_BASE_PATH` – absolute or relative path where cloned repositories are stored (defaults to `./all_repositories`).
+### Using uv
+```bash
+uv venv
+source .venv/bin/activate
+uv pip sync
+export LLM_APP_DEVELOPER_SECRET="secret"
+export GITHUB_TOKEN="ghp_yourtoken"
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-## Usage
-Submit a task from an authenticated client. The API responds immediately while the repository is created in the background.
+## Configuration
+- `LLM_APP_DEVELOPER_SECRET` (required): Shared secret expected from the client.
+- `GITHUB_TOKEN` (required): Personal access token with repository creation rights.
+- `REPO_BASE_PATH` (optional): Absolute or relative directory for cloned repositories; defaults to `./all_repositories`.
+- `SPACE_ID` (optional): If provided, `.env` loading is skipped. Omit to rely on local `.env` files.
+
+## Running the API
+Start the service locally:
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+Hot reload is enabled so file changes restart the worker automatically.
+
+## API Usage
+Submit a task from an authenticated client. The API responds immediately while repository creation continues in the background.
 
 ```http
 POST /submit-task HTTP/1.1
@@ -104,10 +140,20 @@ pytest
 
 Hypothesis-based property tests are included; execution may take longer on the first run while strategies are generated.
 
+## Development Workflow Tips
+- Use `pytest -k <pattern>` to scope tests when iterating on a failing case.
+- `tests/test_task_handler.py` contains end-to-end orchestration cases and fixtures that mimic production payloads.
+- Regenerate tokens and secrets via `.env` for local runs; never commit secrets.
+
 ## Deployment Notes
 - The app is CORS-enabled for any origin, making it suitable for serverless platforms or Hugging Face Spaces (configured via the YAML front matter above).
 - Ensure `LLM_APP_DEVELOPER_SECRET` is set in the deployment environment; missing secrets raise 500 errors.
 - Failed GitHub interactions surface as HTTP 502/500 responses with contextual error messages.
+
+## Troubleshooting
+- **401 Unauthorized**: Verify the client-supplied secret matches `LLM_APP_DEVELOPER_SECRET`.
+- **GitHub 404/403 errors**: Confirm the PAT has `repo` scope and that the account can create repositories under the configured organization.
+- **File permission issues**: Override `REPO_BASE_PATH` to a writable directory when running in containerized or sandboxed environments.
 
 ## License
 Released under the MIT License. See `license: mit` in the space metadata or add a `LICENSE` file for standalone usage.
