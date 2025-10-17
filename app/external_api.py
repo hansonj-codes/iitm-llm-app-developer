@@ -16,7 +16,7 @@ def exponential_backoff_retry(func, max_retries=20, initial_delay=1, backoff_fac
             time.sleep(delay)
             delay *= backoff_factor
 
-def exponential_backoff_jitter_retry(func, max_retries=17, initial_delay=1, backoff_factor=1.8, jitter=0.5, *args, **kwargs):
+def exponential_backoff_jitter_retry(func, max_retries=20, initial_delay=1, backoff_factor=1.8, jitter=0.5, *args, **kwargs):
     import random
     delay = initial_delay
     for attempt in range(max_retries):
@@ -48,7 +48,14 @@ def send_round_completion_notification(task: str) -> None:
     }
     def post_request():
         print(f"Sending round completion notification to {evaluation_url} for task {task}")
+        print(f"Evaluation URL payload: {submit_payload}")
         response = requests.post(evaluation_url, json=submit_payload, headers=headers, timeout=10)
+        # Safely print the response data
+        print('Safely printing the response: ')
+        try:
+            print(response.text.encode('utf-8', errors='replace').decode('utf-8'))
+        except Exception as exx:
+            print(f"Printing response errored out. Error: {exx}")
         response.raise_for_status()
         return response
 
